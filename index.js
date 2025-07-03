@@ -21,23 +21,45 @@ app.use(express.json());
 
 // --- MIDDLEWARE & HELPERS ---
 const validateTelegramAuth = (req, res, next) => {
-    const authHeader = req.headers['Authorization'];
-    if (!authHeader) {
-        return res.status(401).json({ error: 'Not authorized: Missing Telegram InitData' });
+    try {
+        const authHeader = req.headers['authorization'];
+        if (!authHeader) {
+            return res.status(401).json({ error: 'Not authorized: Missing Telegram InitData' });
+        }
+
+        const initData = new URLSearchParams(authHeader);
+        const hash = initData.get('hash');
+        const dataToCheck = [];
+
+        initData.sort();
+        initData.forEach((val, key) => {
+            if (key !== 'hash') {
+                dataToCheck.push(`${key}=${val}`);
+            }
+        });
+
+        const secret = crypto.createHmac('sha256', 'WebAppData')
+            .update(TELEGRAM_BOT_TOKEN)
+            .digest();
+        const calculatedHash = crypto.createHmac('sha256', secret)
+            .update(dataToCheck.join('\n'))
+            .digest('hex');
+
+        if (calculatedHash !== hash) {
+            return res.status(403).json({ error: 'Not authorized: Invalid hash' });
+        }
+
+        const user = initData.get('user');
+        if (!user) return res.status(400).json({ error: 'Invalid initData: user missing' });
+
+        req.user = JSON.parse(user);
+        next();
+    } catch (err) {
+        console.error('Auth error:', err);
+        res.status(400).json({ error: 'Invalid initData format or hash' });
     }
-    const initData = new URLSearchParams(authHeader);
-    const hash = initData.get('hash');
-    const dataToCheck = [];
-    initData.sort();
-    initData.forEach((val, key) => key !== 'hash' && dataToCheck.push(`${key}=${val}`));
-    const secret = crypto.createHmac('sha256', 'WebAppData').update(TELEGRAM_BOT_TOKEN).digest();
-    const calculatedHash = crypto.createHmac('sha256', secret).update(dataToCheck.join('\n')).digest('hex');
-    if (calculatedHash !== hash) {
-        return res.status(403).json({ error: 'Not authorized: Invalid hash' });
-    }
-    req.user = JSON.parse(initData.get('user'));
-    next();
 };
+
 
 async function getDBUser(telegramId) {
     const { data: users, error } = await supabase.from('users').select('*').eq('telegram_id', telegramId);
@@ -53,11 +75,6 @@ async function getDBUser(telegramId) {
 }
 
 
-const initData = req.headers.authorization || '';
-
-if (!initData || initData === '') {
-    return res.status(401).json({ error: 'Unauthorized: initData missing' });
-}
 
 
 
@@ -164,6 +181,8 @@ app.get('/api/achievements', validateTelegramAuth, async (req, res) => {
 
 bot.onText(/\/start/, async (msg) => {
     const { id: telegram_id, username, first_name, last_name } = msg.from;
+    const chatId = msg.chat.id;
+
     try {
         const userData = {
             telegram_id,
@@ -193,13 +212,13 @@ bot.onText(/\/start/, async (msg) => {
                 ]]
             }
         });
-          
-        
+
     } catch (error) {
         console.error("Error in /start command:", error);
-        bot.sendMessage(msg.chat.id, "Sorry, an error occurred. Please try again.");
+        bot.sendMessage(chatId, "Sorry, an error occurred. Please try again.");
     }
 });
+
 
 // --- INITIALIZE EXTERNAL COMMAND FILES ---
 /* <--- ADD THIS
