@@ -53,14 +53,12 @@ async function getDBUser(telegramId) {
 }
 
 
-if (!Telegram.WebApp.initData || Telegram.WebApp.initData === '') {
-    document.body.innerHTML = `<div class="error-container">
-        <h1>Not Authorized</h1>
-        <p>This app must be opened from within Telegram.</p>
-        <p>Please open it from your Telegram chat with the bot.</p>
-    </div>`;
-    return;
+const initData = req.headers.authorization || '';
+
+if (!initData || initData === '') {
+    return res.status(401).json({ error: 'Unauthorized: initData missing' });
 }
+
 
 
 // --- API ROUTES ---
