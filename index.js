@@ -1,3 +1,4 @@
+// --- SETUP (TOP OF FILE) ---
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -6,7 +7,7 @@ const supabase = require('./db');
 const crypto = require('crypto');
 
 // --- ENV-VARIABLES CHECK ---
-const { TELEGRAM_BOT_TOKEN, WEB_APP_URL, PORT = 5050, SUPABASE_URL, SUPABASE_KEY } = process.env;
+const { TELEGRAM_BOT_TOKEN, WEB_APP_URL, PORT = 10000, SUPABASE_URL, SUPABASE_KEY } = process.env;
 if (!TELEGRAM_BOT_TOKEN || !WEB_APP_URL || !SUPABASE_URL || !SUPABASE_KEY) {
     throw new Error("Missing required environment variables!");
 }
@@ -16,49 +17,35 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Middleware to validate Telegram WebApp initData
+// --- MIDDLEWARE & HELPERS ---
 const validateTelegramAuth = (req, res, next) => {
     const authHeader = req.headers['telegram-init-data'];
     if (!authHeader) {
         return res.status(401).json({ error: 'Not authorized: Missing Telegram InitData' });
     }
-
     const initData = new URLSearchParams(authHeader);
     const hash = initData.get('hash');
     const dataToCheck = [];
-
     initData.sort();
-    initData.forEach((val, key) => {
-        if (key !== 'hash') {
-            dataToCheck.push(`${key}=${val}`);
-        }
-    });
-
+    initData.forEach((val, key) => key !== 'hash' && dataToCheck.push(`${key}=${val}`));
     const secret = crypto.createHmac('sha256', 'WebAppData').update(TELEGRAM_BOT_TOKEN).digest();
     const calculatedHash = crypto.createHmac('sha256', secret).update(dataToCheck.join('\n')).digest('hex');
-
     if (calculatedHash !== hash) {
         return res.status(403).json({ error: 'Not authorized: Invalid hash' });
     }
-
-    // Attach user data to request object
     req.user = JSON.parse(initData.get('user'));
     next();
 };
 
-// Helper to get user from DB by telegram_id
 async function getDBUser(telegramId) {
-    const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('telegram_id', telegramId)
-        .single();
+    const { data, error } = await supabase.from('users').select('*').eq('telegram_id', telegramId).single();
     if (error) {
-        console.error('Error fetching user:', error);
+        console.error('Error fetching user:', error.message);
         return null;
     }
     return data;
 }
+
 
 // --- API ROUTES ---
 
@@ -144,65 +131,56 @@ app.get('/api/top', async (req, res) => {
 app.listen(PORT, () => console.log(`API server listening on port ${PORT}`));
 
 
-// --- TELEGRAM BOT LOGIC ---
 const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
 
-// /start command handler
+// Command: /start (Handles user creation)
 bot.onText(/\/start/, async (msg) => {
     const { id: telegram_id, username, first_name, last_name } = msg.from;
-
-    // Check if user exists
-    let { data: user } = await supabase
-        .from('users')
-        .select('id')
-        .eq('telegram_id', telegram_id)
-        .single();
-
-    // If not, create a new user with default values
-    if (!user) {
-        const { data: newUser, error: insertError } = await supabase
-            .from('users')
-            .insert([{
-                telegram_id,
-                username,
-                first_name,
-                last_name,
-                coins: 0,
-                coins_per_click: 1,
-                coins_per_sec: 0,
-                click_upgrade_level: 1,
-                click_upgrade_cost: 10,
-                auto_upgrade_level: 0,
-                auto_upgrade_cost: 20,
-                current_image: 'default', // Or your default image ID
-                total_clicks: 0,
-                total_coins_earned: 0,
-                total_upgrades: 0,
+    try {
+        let { data: user } = await supabase.from('users').select('id').eq('telegram_id', telegram_id).single();
+        if (!user) {
+            const { error: insertError } = await supabase.from('users').insert([{
+                telegram_id, username, first_name, last_name,
+                coins: 0, coins_per_click: 1, coins_per_sec: 0,
+                click_upgrade_level: 1, click_upgrade_cost: 10,
+                auto_upgrade_level: 0, auto_upgrade_cost: 20,
+                current_image: 'default',
+                total_clicks: 0, total_coins_earned: 0, total_upgrades: 0,
                 last_active: new Date().toISOString()
-            }])
-            .select()
-            .single();
-
-        if (insertError) {
-            console.error("Error creating new user:", insertError);
-            return bot.sendMessage(msg.chat.id, "Sorry, there was an error setting up your account. Please try again later.");
+            }]);
+            if (insertError) {
+                throw insertError; // This will be caught by the catch block
+            }
         }
-        user = newUser;
+        bot.sendMessage(msg.chat.id, `Welcome to the Clicker Game, @${username}!\n\nClick the button below to start earning coins.`, {
+            reply_markup: { inline_keyboard: [[{ text: '🚀 Open Clicker Game', web_app: { url: WEB_APP_URL } }]] }
+        });
+    } catch (error) {
+        console.error("Error in /start command:", error);
+        bot.sendMessage(msg.chat.id, "Sorry, there was an error setting up your account. Please check the server logs.");
     }
-
-    bot.sendMessage(
-        msg.chat.id,
-        `Welcome to the Clicker Game, @${username}!\n\nClick the button below to start earning coins.`, {
-        reply_markup: {
-            inline_keyboard: [
-                [{ text: '🚀 Open Clicker Game', web_app: { url: WEB_APP_URL } }]
-            ]
-        }
-    }
-    );
 });
 
-// Other bot commands (top, balance etc can still live here)
-bot.onText(/\/top/, require('./commands/top')(bot, supabase)); // Your existing command files are fine
+const balanceCommand = require('./commands/balance');
+const clickCommand = require('./commands/click');
+const topCommand = require('./commands/top');
+const transferCommand = require('./commands/transfer');
 
-console.log('Bot is running...');
+bot.onText(/\/balance/, balanceCommand(bot, supabase));
+bot.onText(/\/click/, clickCommand(bot, supabase)); // Note: This command is redundant if the game is in the web app
+bot.onText(/\/top/, topCommand(bot, supabase));
+bot.onText(/\/transfer/, transferCommand(bot, supabase));
+
+// This web_app_data listener is likely not needed if all actions happen via API calls,
+// but we can leave it here for now.
+bot.on('message', async (msg) => {
+    if (msg.web_app_data) {
+        console.log('Received web_app_data:', msg.web_app_data);
+    }
+});
+
+// --- START THE SERVER ---
+app.listen(PORT, () => {
+    console.log(`API server listening on port ${PORT}`);
+    console.log('Bot is running...'); // Only log "Bot is running" once
+});
