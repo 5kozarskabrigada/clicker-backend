@@ -159,8 +159,26 @@ bot.onText(/\/start/, async (msg) => {
     try {
         const { data: existingUsers } = await supabase.from('users').select('id').eq('telegram_id', telegram_id);
         if (existingUsers && existingUsers.length > 0) {
-            await supabase.from('users').delete().eq('telegram_id', telegram_id);
-            console.log(`Cleaned up ${existingUsers.length} old entries for user ${telegram_id}`);
+            await supabase.from('users').upsert([{
+                telegram_id,
+                username,
+                first_name,
+                last_name,
+                coins: 0,
+                coins_per_click: 1,
+                coins_per_sec: 0,
+                click_upgrade_level: 1,
+                click_upgrade_cost: 10,
+                auto_upgrade_level: 0,
+                auto_upgrade_cost: 20,
+                current_image: 'default',
+                total_clicks: 0,
+                total_coins_earned: 0,
+                total_upgrades: 0,
+                last_active: new Date().toISOString()
+            }], { onConflict: ['telegram_id'] });
+              
+              
         }
         const { error: insertError } = await supabase.from('users').insert([{
             telegram_id, username, first_name, last_name,
