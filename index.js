@@ -51,27 +51,21 @@ async function getDBUser(telegramId) {
 
 // --- API ROUTES ---
 
-// GET /api/user: Get user data and calculate passive income
 app.get('/api/user', validateTelegramAuth, async (req, res) => {
     const telegramId = req.user.id;
     let user = await getDBUser(telegramId);
-    if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-    }
+    if (!user) return res.status(404).json({ error: 'User not found' });
     // Assuming process_passive_income SQL function exists
     await supabase.rpc('process_passive_income', { p_user_id: user.id }).catch(err => console.error("Error processing passive income:", err.message));
-
-    // Fetch user again to get updated coin count
     const updatedUser = await getDBUser(telegramId);
+    if (!updatedUser) return res.status(404).json({ error: 'User not found after passive income update' });
     res.json(updatedUser);
 });
 
-// POST /api/click: Handle a click action
 app.post('/api/click', validateTelegramAuth, async (req, res) => {
     const telegramId = req.user.id;
     const user = await getDBUser(telegramId);
     if (!user) return res.status(404).json({ error: 'User not found' });
-
     const updates = {
         coins: user.coins + user.coins_per_click,
         total_clicks: user.total_clicks + 1,
@@ -83,7 +77,6 @@ app.post('/api/click', validateTelegramAuth, async (req, res) => {
     res.json(updatedUser);
 });
 
-// POST /api/upgrade/click
 app.post('/api/upgrade/click', validateTelegramAuth, async (req, res) => {
     const user = await getDBUser(req.user.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -93,7 +86,6 @@ app.post('/api/upgrade/click', validateTelegramAuth, async (req, res) => {
     res.json(updatedUser);
 });
 
-// POST /api/upgrade/auto
 app.post('/api/upgrade/auto', validateTelegramAuth, async (req, res) => {
     const user = await getDBUser(req.user.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -103,24 +95,66 @@ app.post('/api/upgrade/auto', validateTelegramAuth, async (req, res) => {
     res.json(updatedUser);
 });
 
-// GET /api/top
 app.get('/api/top', async (req, res) => {
     const { data, error } = await supabase.from('users').select('username, coins').order('coins', { ascending: false }).limit(10);
     if (error) return res.status(500).json({ error: 'Failed to load top players' });
     res.json(data);
 });
 
-// --- TELEGRAM BOT COMMAND HANDLERS ---
+app.post('/api/transfer', validateTelegramAuth, async (req, res) => {
+    const { toUsername, amount } = req.body;
+    const fromUser = await getDBUser(req.user.id);
+    if (!fromUser) return res.status(404).json({ error: 'Sender not found' });
+    const { error } = await supabase.rpc('transfer_coins', { p_from_user_id: fromUser.id, p_to_username: toUsername, p_amount: parseInt(amount, 10) });
+    if (error) return res.status(400).json({ error: error.message });
+    const updatedSender = await getDBUser(req.user.id);
+    res.json({ message: `Successfully sent ${amount} coins to @${toUsername}!`, updatedSender });
+});
 
-// Command: /start (Handles user creation)
+app.get('/api/images', validateTelegramAuth, async (req, res) => {
+    const user = await getDBUser(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const { data: allImages, error: imgErr } = await supabase.from('image_upgrades').select('*');
+    const { data: userImages, error: userImgErr } = await supabase.from('user_images').select('image_id').eq('user_id', user.id);
+    if (imgErr || userImgErr) return res.status(500).json({ error: 'Could not fetch images' });
+    res.json({ allImages, userImages, currentImageId: user.current_image });
+});
+
+app.post('/api/images/buy', validateTelegramAuth, async (req, res) => {
+    const { imageId } = req.body;
+    const user = await getDBUser(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const { data: updatedUser, error } = await supabase.rpc('buy_image', { p_user_id: user.id, p_image_id: imageId });
+    if (error) return res.status(400).json({ error: error.message });
+    res.json(updatedUser);
+});
+
+app.post('/api/images/select', validateTelegramAuth, async (req, res) => {
+    const { imageId } = req.body;
+    const user = await getDBUser(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const { data: owned, error: ownErr } = await supabase.from('user_images').select('image_id').eq('user_id', user.id).eq('image_id', imageId).single();
+    if (ownErr || !owned) return res.status(403).json({ error: 'You do not own this image.' });
+    const { data: updatedUser, error } = await supabase.from('users').update({ current_image: imageId }).eq('id', user.id).select().single();
+    if (error) return res.status(500).json({ error: 'Failed to select image.' });
+    res.json(updatedUser);
+});
+
+app.get('/api/achievements', validateTelegramAuth, async (req, res) => {
+    const user = await getDBUser(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const { data: allAchievements, error: achErr } = await supabase.from('achievements').select('*');
+    const { data: userAchievements, error: userAchErr } = await supabase.from('user_achievements').select('achievement_id, unlocked_at').eq('user_id', user.id);
+    if (achErr || userAchErr) return res.status(500).json({ error: 'Could not fetch achievements' });
+    res.json({ allAchievements, userAchievements });
+});
+
+
+// --- TELEGRAM BOT COMMAND HANDLERS ---
 bot.onText(/\/start/, async (msg) => {
     const { id: telegram_id, username, first_name, last_name } = msg.from;
     try {
-        // --- Self-healing logic ---
-        // 1. Delete any potential duplicate entries for this user first.
         await supabase.from('users').delete().eq('telegram_id', telegram_id);
-
-        // 2. Now, insert a single, clean record.
         const { error: insertError } = await supabase.from('users').insert([{
             telegram_id, username, first_name, last_name,
             coins: 0, coins_per_click: 1, coins_per_sec: 0,
@@ -130,37 +164,29 @@ bot.onText(/\/start/, async (msg) => {
             total_clicks: 0, total_coins_earned: 0, total_upgrades: 0,
             last_active: new Date().toISOString()
         }]);
-
-        if (insertError) {
-            // If insert fails for any other reason, throw the error.
-            throw insertError;
-        }
-
-        // 3. Send the welcome message.
-        bot.sendMessage(msg.chat.id, `Welcome to the Clicker Game, @${username}!\n\nClick the button below to start playing.`, {
+        if (insertError) throw insertError;
+        bot.sendMessage(msg.chat.id, `Welcome! Click below to play.`, {
             reply_markup: { inline_keyboard: [[{ text: '🚀 Open Clicker Game', web_app: { url: WEB_APP_URL } }]] }
         });
-
     } catch (error) {
         console.error("Error in /start command:", error);
-        bot.sendMessage(msg.chat.id, "Sorry, there was an error setting up your account. Please try again in a moment.");
+        bot.sendMessage(msg.chat.id, "Sorry, an error occurred. Please try again.");
     }
 });
 
-
 // --- INITIALIZE EXTERNAL COMMAND FILES ---
-// This pattern allows you to keep command logic in separate files.
-const balanceHandler = require('./commands/balance')(bot, supabase);
-const topHandler = require('./commands/top')(bot, supabase);
-const transferHandler = require('./commands/transfer')(bot, supabase);
-const clickHandler = require('./commands/click.js');
-
-// Attach the handlers to the bot
-bot.onText(/\/balance/, balanceHandler);
-bot.onText(/\/top/, topHandler);
-bot.onText(/\/transfer/, transferHandler);
-bot.onText(/\/click/, clickHandler(bot, supabase));
-
+try {
+    const balanceHandler = require('./commands/balance')(bot, supabase);
+    const topHandler = require('./commands/top')(bot, supabase);
+    const transferHandler = require('./commands/transfer')(bot, supabase);
+    const clickHandler = require('./commands/click.js')(bot, supabase);
+    bot.onText(/\/balance/, balanceHandler);
+    bot.onText(/\/top/, topHandler);
+    bot.onText(/\/transfer/, transferHandler);
+    bot.onText(/\/click/, clickHandler);
+} catch (error) {
+    console.warn("Could not load external command files. This is okay if they don't exist.", error.message);
+}
 
 // --- START THE SERVER (AT THE VERY END) ---
 app.listen(PORT, () => {
