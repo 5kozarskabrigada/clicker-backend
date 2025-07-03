@@ -174,7 +174,11 @@ bot.onText(/\/start/, async (msg) => {
                 click_upgrade_cost: 10,
                 auto_upgrade_level: 0,
                 auto_upgrade_cost: 20,
-                current_image: 'default' // Or your default image ID
+                current_image: 'default', // Or your default image ID
+                total_clicks: 0,
+                total_coins_earned: 0,
+                total_upgrades: 0,
+                last_active: new Date().toISOString()
             }])
             .select()
             .single();
