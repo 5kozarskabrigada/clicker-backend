@@ -157,42 +157,35 @@ app.get('/api/achievements', validateTelegramAuth, async (req, res) => {
 bot.onText(/\/start/, async (msg) => {
     const { id: telegram_id, username, first_name, last_name } = msg.from;
     try {
-        const { data: existingUsers } = await supabase.from('users').select('id').eq('telegram_id', telegram_id);
-        if (existingUsers && existingUsers.length > 0) {
-            await supabase.from('users').upsert([{
-                telegram_id,
-                username,
-                first_name,
-                last_name,
-                coins: 0,
-                coins_per_click: 1,
-                coins_per_sec: 0,
-                click_upgrade_level: 1,
-                click_upgrade_cost: 10,
-                auto_upgrade_level: 0,
-                auto_upgrade_cost: 20,
-                current_image: 'default',
-                total_clicks: 0,
-                total_coins_earned: 0,
-                total_upgrades: 0,
-                last_active: new Date().toISOString()
-            }], { onConflict: ['telegram_id'] });
-              
-              
-        }
-        const { error: insertError } = await supabase.from('users').insert([{
-            telegram_id, username, first_name, last_name,
-            coins: 0, coins_per_click: 1, coins_per_sec: 0,
-            click_upgrade_level: 1, click_upgrade_cost: 10,
-            auto_upgrade_level: 0, auto_upgrade_cost: 20,
+        const userData = {
+            telegram_id,
+            username,
+            first_name,
+            last_name,
+            coins: 0,
+            coins_per_click: 1,
+            coins_per_sec: 0,
+            click_upgrade_level: 1,
+            click_upgrade_cost: 10,
+            auto_upgrade_level: 0,
+            auto_upgrade_cost: 20,
             current_image: 'default',
-            total_clicks: 0, total_coins_earned: 0, total_upgrades: 0,
+            total_clicks: 0,
+            total_coins_earned: 0,
+            total_upgrades: 0,
             last_active: new Date().toISOString()
-        }]);
-        if (insertError) throw insertError;
+        };
+
+        await supabase.from('users').upsert([userData], { onConflict: ['telegram_id'] });
+
         bot.sendMessage(msg.chat.id, `Welcome! Click below to play.`, {
-            reply_markup: { inline_keyboard: [[{ text: '🚀 Open Clicker Game', web_app: { url: WEB_APP_URL } }]] }
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '🚀 Open Clicker Game', web_app: { url: WEB_APP_URL } }]
+                ]
+            }
         });
+        
     } catch (error) {
         console.error("Error in /start command:", error);
         bot.sendMessage(msg.chat.id, "Sorry, an error occurred. Please try again.");
