@@ -182,6 +182,7 @@ bot.onText(/\/start/, async (msg) => {
 });
 
 // --- INITIALIZE EXTERNAL COMMAND FILES ---
+/* <--- ADD THIS
 try {
     const balanceHandler = require('./commands/balance')(bot, supabase);
     const topHandler = require('./commands/top')(bot, supabase);
@@ -194,6 +195,7 @@ try {
 } catch (error) {
     console.warn("Could not load external command files. This is okay if they don't exist.", error.message);
 }
+ADD THIS ---> */
 
 app.listen(PORT, () => {
     console.log(`API server listening on port ${PORT}`);
