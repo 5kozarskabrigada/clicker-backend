@@ -1,4 +1,3 @@
-// --- SETUP (TOP OF FILE) ---
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -41,13 +40,18 @@ const validateTelegramAuth = (req, res, next) => {
 };
 
 async function getDBUser(telegramId) {
-    const { data, error } = await supabase.from('users').select('*').eq('telegram_id', telegramId).single();
+    const { data: users, error } = await supabase.from('users').select('*').eq('telegram_id', telegramId);
     if (error) {
         console.error(`Error fetching user for telegramId ${telegramId}:`, error.message);
         return null;
     }
-    return data;
+    if (!users || users.length === 0) return null;
+    if (users.length > 1) {
+        console.warn(`Multiple users found for telegramId ${telegramId}, returning first one and attempting cleanup.`);
+    }
+    return users[0];
 }
+
 
 // --- API ROUTES ---
 
@@ -150,11 +154,14 @@ app.get('/api/achievements', validateTelegramAuth, async (req, res) => {
 });
 
 
-// --- TELEGRAM BOT COMMAND HANDLERS ---
 bot.onText(/\/start/, async (msg) => {
     const { id: telegram_id, username, first_name, last_name } = msg.from;
     try {
-        await supabase.from('users').delete().eq('telegram_id', telegram_id);
+        const { data: existingUsers } = await supabase.from('users').select('id').eq('telegram_id', telegram_id);
+        if (existingUsers && existingUsers.length > 0) {
+            await supabase.from('users').delete().eq('telegram_id', telegram_id);
+            console.log(`Cleaned up ${existingUsers.length} old entries for user ${telegram_id}`);
+        }
         const { error: insertError } = await supabase.from('users').insert([{
             telegram_id, username, first_name, last_name,
             coins: 0, coins_per_click: 1, coins_per_sec: 0,
@@ -188,7 +195,6 @@ try {
     console.warn("Could not load external command files. This is okay if they don't exist.", error.message);
 }
 
-// --- START THE SERVER (AT THE VERY END) ---
 app.listen(PORT, () => {
     console.log(`API server listening on port ${PORT}`);
     console.log('Bot is running...');
