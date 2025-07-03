@@ -53,6 +53,16 @@ async function getDBUser(telegramId) {
 }
 
 
+if (!Telegram.WebApp.initData || Telegram.WebApp.initData === '') {
+    document.body.innerHTML = `<div class="error-container">
+        <h1>Not Authorized</h1>
+        <p>This app must be opened from within Telegram.</p>
+        <p>Please open it from your Telegram chat with the bot.</p>
+    </div>`;
+    return;
+}
+
+
 // --- API ROUTES ---
 
 app.get('/api/user', validateTelegramAuth, async (req, res) => {
@@ -178,13 +188,14 @@ bot.onText(/\/start/, async (msg) => {
 
         await supabase.from('users').upsert([userData], { onConflict: ['telegram_id'] });
 
-        bot.sendMessage(msg.chat.id, `Welcome! Click below to play.`, {
+        bot.sendMessage(chatId, "Play the Clicker Game", {
             reply_markup: {
-                inline_keyboard: [
-                    [{ text: '🚀 Open Clicker Game', web_app: { url: WEB_APP_URL } }]
-                ]
+                inline_keyboard: [[
+                    { text: "🚀 Open Game", web_app: { url: WEB_APP_URL } }
+                ]]
             }
         });
+          
         
     } catch (error) {
         console.error("Error in /start command:", error);
