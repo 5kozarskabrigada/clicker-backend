@@ -185,10 +185,10 @@ bot.onText(/\/start/, async (msg) => {
 
     try {
         const userData = {
-            telegram_id,
-            username,
-            first_name,
-            last_name,
+            telegram_id: telegram_id, // This is the conflict target
+            username: username,
+            first_name: first_name,
+            last_name: last_name,
             coins: 0,
             coins_per_click: 1,
             coins_per_sec: 0,
@@ -203,13 +203,17 @@ bot.onText(/\/start/, async (msg) => {
             last_active: new Date().toISOString()
         };
 
-        await supabase.from('users').upsert([userData], { onConflict: ['telegram_id'] });
+        // Use upsert to create or update the user.
+        // It will insert if telegram_id doesn't exist.
+        // It will update if telegram_id does exist (though in this case it just re-writes the same data).
+        // This requires a UNIQUE constraint on the `telegram_id` column.
+        const { error } = await supabase.from('users').upsert(userData, { onConflict: 'telegram_id' });
 
-        bot.sendMessage(chatId, "Play the Clicker Game", {
+        if (error) throw error;
+
+        bot.sendMessage(chatId, "Welcome! Click below to play.", {
             reply_markup: {
-                inline_keyboard: [[
-                    { text: "🚀 Open Game", web_app: { url: WEB_APP_URL } }
-                ]]
+                inline_keyboard: [[{ text: "🚀 Open Game", web_app: { url: WEB_APP_URL } }]]
             }
         });
 
