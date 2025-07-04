@@ -12,7 +12,16 @@ if (!TELEGRAM_BOT_TOKEN || !WEB_APP_URL || !SUPABASE_URL || !SUPABASE_KEY) {
 }
 
 // --- INITIALIZE THE BOT (ONE SINGLE INSTANCE) ---
-const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
+const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: { interval: 300, autoStart: true, params: { timeout: 10 } } });
+
+bot.on('polling_error', (error) => {
+    console.error(`Polling error: ${error.code} - ${error.message}`);
+    // This stops the bot if another instance takes over.
+    if (error.code === 'ETELEGRAM' && error.message.includes('409 Conflict')) {
+        console.warn('Conflict error detected. This instance will stop polling.');
+        bot.stopPolling();
+    }
+});
 
 // --- EXPRESS API SETUP ---
 const app = express();
@@ -84,8 +93,11 @@ app.get('/api/user', validateTelegramAuth, async (req, res) => {
     const telegramId = req.user.id;
     let user = await getDBUser(telegramId);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    // Assuming process_passive_income SQL function exists
-    await supabase.rpc('process_passive_income', { p_user_id: user.id }).catch(err => console.error("Error processing passive income:", err.message));
+    try {
+        await supabase.rpc('process_passive_income', { p_user_id: user.id });
+    } catch (err) {
+        console.error("Error processing passive income:", err.message);
+    }
     const updatedUser = await getDBUser(telegramId);
     if (!updatedUser) return res.status(404).json({ error: 'User not found after passive income update' });
     res.json(updatedUser);
