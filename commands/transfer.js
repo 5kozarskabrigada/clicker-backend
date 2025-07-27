@@ -1,7 +1,5 @@
-// This file should export a single function
 module.exports = function (bot, supabase) {
 
-    // The function that handles the /transfer command
     async function handleTransfer(msg) {
         const userId = msg.from.id;
         const text = msg.text.trim();
@@ -18,7 +16,7 @@ module.exports = function (bot, supabase) {
             return bot.sendMessage(msg.chat.id, 'Enter a positive number of coins.');
         }
 
-        // ... (The rest of your transfer logic is correct)
+
         const { data: sender, error: senderErr } = await supabase.from('users').select('*').eq('telegram_id', userId).single();
         if (senderErr || !sender) return bot.sendMessage(msg.chat.id, 'Sender not found.');
         if (sender.coins < amount) return bot.sendMessage(msg.chat.id, 'Not enough coins.');
@@ -35,15 +33,8 @@ module.exports = function (bot, supabase) {
         return bot.sendMessage(msg.chat.id, `You sent ${amount} coins to @${toUsername}`);
     }
 
-    // This function returns the actual handler that bot.onText needs
+
     return handleTransfer;
 
-    // --- DELETE THE CODE THAT WAS CAUSING THE ERROR ---
-    // The following lines were at the top level of your file and causing the crash.
-    // They must be removed.
-    /*
-    bot.onText(/\/transfers/, async (msg) => {
-        // ... this code needs to be moved or handled differently
-    });
-    */
+
 };

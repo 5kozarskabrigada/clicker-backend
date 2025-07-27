@@ -9,7 +9,6 @@ async function handleWebAppClick(bot, supabase, userId) {
         return { error: 'User not found' };
     }
 
-    // Update user data
     const updates = {
         coins: user.coins + user.coins_per_click,
         total_clicks: user.total_clicks + 1,
