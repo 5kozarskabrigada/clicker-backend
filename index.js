@@ -4,7 +4,6 @@ const cors = require('cors');
 const TelegramBot = require('node-telegram-bot-api');
 const supabase = require('./db');
 const crypto = require('crypto');
-const adminHandler = require('./commands/admin')(bot, supabase);
 
 const { TELEGRAM_BOT_TOKEN, WEB_APP_URL, PORT = 10000, SUPABASE_URL, SUPABASE_KEY } = process.env;
 if (!TELEGRAM_BOT_TOKEN || !WEB_APP_URL || !SUPABASE_URL || !SUPABASE_KEY) {
@@ -27,6 +26,8 @@ bot.on('polling_error', (error) => {
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const adminHandler = require('./commands/admin')(bot, supabase);
 
 
 const validateTelegramAuth = (req, res, next) => {
