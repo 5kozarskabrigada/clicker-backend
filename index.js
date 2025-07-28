@@ -177,27 +177,31 @@ app.post('/api/click', validateTelegramAuth, async (req, res) => {
     }
 });
 
-app.post('/api/upgrade/click', validateTelegramAuth, async (req, res) => {
-    try {
-        const { error } = await supabase.rpc('upgrade_click', { p_user_id: req.user.id });
-        if (error) throw error;
-        const updatedUser = await getDBUser(req.user.id);
-        res.json(updatedUser);
-    } catch (err) {
-        console.error("Error in /upgrade/click:", err);
-        res.status(400).json({ error: err.message });
-    }
-});
+app.post('/api/upgrade', validateTelegramAuth, async (req, res) => {
+    const { upgradeId } = req.body; 
 
-app.post('/api/upgrade/auto', validateTelegramAuth, async (req, res) => {
+    if (!upgradeId) {
+        return res.status(400).json({ error: 'Missing upgradeId' });
+    }
+
     try {
-        const { error } = await supabase.rpc('upgrade_auto', { p_user_id: req.user.id });
+        const dbUser = await getDBUser(req.user.id);
+        if (!dbUser) return res.status(404).json({ error: 'User not found in DB' });
+
+        const { error } = await supabase.rpc('purchase_upgrade', {
+            p_user_id: dbUser.id,
+            p_upgrade_id: upgradeId
+        });
+
         if (error) throw error;
+
         const updatedUser = await getDBUser(req.user.id);
         res.json(updatedUser);
+
     } catch (err) {
-        console.error("Error in /upgrade/auto:", err);
-        res.status(400).json({ error: err.message });
+        console.error(`Error in /upgrade for ${upgradeId}:`, err);
+        const message = err.message.includes('Not enough coins') ? 'You do not have enough coins for this upgrade.' : 'Upgrade failed.';
+        res.status(400).json({ error: message });
     }
 });
 
