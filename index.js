@@ -223,17 +223,24 @@ app.post('/api/claim-bonus', validateTelegramAuth, async (req, res) => {
 });
 
 app.get('/api/top', async (req, res) => {
+    const sortBy = req.query.sortBy || 'coins';
+
+    const allowedSortColumns = ['coins', 'coins_per_click', 'coins_per_sec', 'offline_coins_per_hour'];
+    if (!allowedSortColumns.includes(sortBy)) {
+        return res.status(400).json({ error: 'Invalid sort parameter' });
+    }
+
     try {
         const { data, error } = await supabase
             .from('users')
-            .select('username, coins')
-            .order('coins', { ascending: false })
+            .select(`username, ${sortBy}`)
+            .order(sortBy, { ascending: false })
             .limit(10);
 
         if (error) throw error;
         res.json(data);
     } catch (err) {
-        console.error("Error in /top:", err);
+        console.error(`Error in /top for sortBy=${sortBy}:`, err);
         res.status(500).json({ error: 'Failed to load top players' });
     }
 });
