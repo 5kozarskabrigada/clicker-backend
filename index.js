@@ -34,15 +34,7 @@ const app = express();
 app.use(cors(corsOptions));
 app.use(express.json());
 
-app.options('*', (req, res) => {
-    res.header('Access-Control-Allow-Origin', corsOptions.origin);
-    res.header('Access-Control-Allow-Methods', corsOptions.methods.join(','));
-    res.header('Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(','));
-    res.status(200).send();
-});
-
 const adminHandler = require('./commands/admin')(bot, supabase);
-
 
 const validateTelegramAuth = (req, res, next) => {
     try {
@@ -96,8 +88,6 @@ async function getDBUser(telegramId) {
     }
     return users[0];
 }
-
-app.options('*', cors(corsOptions));
 
 app.get('/api/user', validateTelegramAuth, async (req, res) => {
     const telegramId = req.user.id;
@@ -161,7 +151,7 @@ app.post('/api/upgrade/auto', validateTelegramAuth, async (req, res) => {
     res.json(updatedUser);
 });
 
-app.get('/api/top', cors(corsOptions), async (req, res) => {
+app.get('/api/top', async (req, res) => {
     const { data, error } = await supabase.from('users').select('username, coins').order('coins', { ascending: false }).limit(10);
     if (error) return res.status(500).json({ error: 'Failed to load top players' });
     res.json(data);
