@@ -11,14 +11,36 @@ if (!TELEGRAM_BOT_TOKEN || !WEB_APP_URL || !SUPABASE_URL || !SUPABASE_KEY) {
     throw new Error("Missing required environment variables!");
 }
 
+
+
+const app = express();
+const allowedOrigins = [
+    'https://clicker-frontend-pi.vercel.app', // Your production frontend URL
+    'https://web.telegram.org'
+];
+
 const corsOptions = {
-    origin: 'https://clicker-frontend-pi.vercel.app',
+    origin: function (origin, callback) {
+        if (!origin) return callback(null, true);
+
+       
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            return callback(null, true);
+        }
+
+        if (/\.vercel\.app$/.test(origin)) {
+            return callback(null, true);
+        }
+
+
+        return callback(new Error('The CORS policy for this site does not allow access from the specified Origin.'), false);
+    },
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 };
 
-const app = express();
+
 app.use(cors(corsOptions));
 app.use(express.json());
 
@@ -238,5 +260,4 @@ bot.onText(/\/start/, async (msg) => {
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-    console.log(`Web App URL: ${WEB_APP_URL}`);
 });
