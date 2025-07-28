@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const TelegramBot = require('node-telegram-bot-api');
 const supabase = require('./db');
 const crypto = require('crypto');
@@ -11,15 +12,26 @@ if (!TELEGRAM_BOT_TOKEN || !WEB_APP_URL || !SUPABASE_URL || !SUPABASE_KEY) {
 }
 
 const corsOptions = {
-    origin: [
-        'https://clicker-frontend-pi.vercel.app',
-        'https://clicker-frontend-kurvnn7wk-5kozarskabrigadas-projects.vercel.app',
-        'https://web.telegram.org'
-    ],
+    origin: 'https://clicker-frontend-pi.vercel.app',
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 };
+
+const app = express();
+app.use(cors(corsOptions));
+app.use(express.json());
+
+app.use(helmet.contentSecurityPolicy({
+    directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "https://telegram.org"], 
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"], 
+        fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"], 
+        imgSrc: ["'self'", "data:", "https://pngimg.com"], 
+        connectSrc: ["'self'", "https://*.supabase.co"],
+    }
+}));
 
 const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
 
@@ -31,10 +43,11 @@ bot.on('polling_error', (error) => {
     }
 });
 
-const app = express();
-app.use(cors(corsOptions));
-app.use(express.json());
 
+
+app.get('/', (req, res) => {
+    res.json({ status: 'ok', message: 'Welcome to Clicker Backend' });
+});
 
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -90,6 +103,7 @@ async function getDBUser(telegramId) {
     }
     return users?.[0] || null;
 }
+
 
 
 app.get('/api/user', validateTelegramAuth, async (req, res) => {
