@@ -130,13 +130,15 @@ async function getDBUser(telegramId) {
 
 app.get('/api/user', validateTelegramAuth, async (req, res) => {
     try {
-        const user = await getDBUser(req.user.id);
-        if (!user) return res.status(404).json({ error: 'User not found' });
+        const dbUser = await getDBUser(req.user.id);
+        if (!dbUser) return res.status(404).json({ error: 'User not found' });
 
-        await supabase.rpc('process_passive_income', { p_user_id: user.id });
+        const { data: earnings } = await supabase.rpc('process_offline_earnings', { p_user_id: dbUser.id });
+
         const updatedUser = await getDBUser(req.user.id);
 
-        res.json(updatedUser || { error: 'Failed to update user' });
+        res.json({ user: updatedUser, earnings: earnings });
+
     } catch (err) {
         console.error("Error in /user:", err);
         res.status(500).json({ error: 'Server error' });
@@ -255,9 +257,9 @@ bot.onText(/\/start/, async (msg) => {
             first_name,
             last_name,
             coins: 0.0000000000,
-            coins_per_click: 0.0000000001,
-            coins_per_sec: 0.0000000001,
-            offline_coins_per_hour: 0.00000001,
+            coins_per_click: 1e-16,
+            coins_per_sec: 1e-16,
+            offline_coins_per_hour: 1e-16,
 
             click_tier_1_level: 0,
             click_tier_2_level: 0,
