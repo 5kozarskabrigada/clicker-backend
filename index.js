@@ -205,6 +205,23 @@ app.post('/api/upgrade', validateTelegramAuth, async (req, res) => {
     }
 });
 
+app.post('/api/claim-bonus', validateTelegramAuth, async (req, res) => {
+    try {
+        const dbUser = await getDBUser(req.user.id);
+        if (!dbUser) return res.status(404).json({ error: 'User not found' });
+
+        const { data, error } = await supabase.rpc('claim_comeback_bonus', {
+            p_user_id: dbUser.id
+        });
+
+        if (error) throw error;
+        res.json(data);
+    } catch (err) {
+        console.error("Error in /claim-bonus:", err);
+        res.status(500).json({ error: 'Failed to claim bonus' });
+    }
+});
+
 app.get('/api/top', async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -225,26 +242,36 @@ bot.onText(/\/start/, async (msg) => {
     try {
         const { id: telegram_id, username, first_name, last_name } = msg.from;
 
-        const userData = {
+        const newUserProfile = {
             telegram_id,
-            username,
+            username: username || `user_${telegram_id}`,
             first_name,
             last_name,
-            coins: 0,
-            coins_per_click: 1,
-            coins_per_sec: 0,
-            click_upgrade_level: 1,
-            click_upgrade_cost: 10,
-            auto_upgrade_level: 0,
-            auto_upgrade_cost: 20,
-            current_image: 'default',
+
+            coins: 0.0,
+            coins_per_click: 0.0000000001, 
+            coins_per_sec: 0.0,
+
+            click_tier_1_level: 0,
+            click_tier_2_level: 0,
+            click_tier_3_level: 0,
+            click_tier_4_level: 0,
+            click_tier_5_level: 0,
+            auto_tier_1_level: 0,
+            auto_tier_2_level: 0,
+            auto_tier_3_level: 0,
+            auto_tier_4_level: 0,
+            auto_tier_5_level: 0,
+
             total_clicks: 0,
-            total_coins_earned: 0,
-            total_upgrades: 0,
+            total_coins_earned: 0.0,
             last_active: new Date().toISOString()
         };
 
-        const { error } = await supabase.from('users').upsert(userData, { onConflict: 'telegram_id' });
+        const { error } = await supabase
+            .from('users')
+            .upsert(newUserProfile, { onConflict: 'telegram_id' });
+
         if (error) throw error;
 
         bot.sendMessage(msg.chat.id, "Welcome! Click below to play.", {
