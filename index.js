@@ -247,10 +247,10 @@ bot.onText(/\/start/, async (msg) => {
             username: username || `user_${telegram_id}`,
             first_name,
             last_name,
-
             coins: 0.0,
-            coins_per_click: 0.0000000001, 
+            coins_per_click: 0.0000000001,
             coins_per_sec: 0.0,
+            offline_coins_per_hour: 0.00000001,
 
             click_tier_1_level: 0,
             click_tier_2_level: 0,
@@ -262,6 +262,11 @@ bot.onText(/\/start/, async (msg) => {
             auto_tier_3_level: 0,
             auto_tier_4_level: 0,
             auto_tier_5_level: 0,
+            offline_tier_1_level: 0,
+            offline_tier_2_level: 0,
+            offline_tier_3_level: 0,
+            offline_tier_4_level: 0,
+            offline_tier_5_level: 0,
 
             total_clicks: 0,
             total_coins_earned: 0.0,
