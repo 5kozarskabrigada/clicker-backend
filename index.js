@@ -10,25 +10,31 @@ if (!TELEGRAM_BOT_TOKEN || !WEB_APP_URL || !SUPABASE_URL || !SUPABASE_KEY) {
     throw new Error("Missing required environment variables!");
 }
 
+const corsOptions = {
+    origin: [
+        'https://clicker-frontend-pi.vercel.app',
+        'https://clicker-frontend-kurvnn7wk-5kozarskabrigadas-projects.vercel.app',
+    ],
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+};
 
 const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: { interval: 300, autoStart: true, params: { timeout: 10 } } });
 
 bot.on('polling_error', (error) => {
     console.error(`Polling error: ${error.code} - ${error.message}`);
-
     if (error.code === 'ETELEGRAM' && error.message.includes('409 Conflict')) {
         console.warn('Conflict error detected. This instance will stop polling.');
         bot.stopPolling();
     }
 });
 
-
 const app = express();
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 
 const adminHandler = require('./commands/admin')(bot, supabase);
-
 
 const validateTelegramAuth = (req, res, next) => {
     try {
@@ -70,7 +76,6 @@ const validateTelegramAuth = (req, res, next) => {
     }
 };
 
-
 async function getDBUser(telegramId) {
     const { data: users, error } = await supabase.from('users').select('*').eq('telegram_id', telegramId);
     if (error) {
@@ -84,8 +89,7 @@ async function getDBUser(telegramId) {
     return users[0];
 }
 
-
-
+app.options('*', cors(corsOptions));
 
 app.get('/api/user', validateTelegramAuth, async (req, res) => {
     const telegramId = req.user.id;
@@ -122,9 +126,8 @@ app.post('/api/click', validateTelegramAuth, async (req, res) => {
 
     if (error) return res.status(500).json({ error: 'Failed to process click' });
 
-
     await supabase.from('user_logs').insert({
-        user_id: user.id, 
+        user_id: user.id,
         action: 'click',
         details: { coins_earned: user.coins_per_click }
     });
@@ -150,7 +153,7 @@ app.post('/api/upgrade/auto', validateTelegramAuth, async (req, res) => {
     res.json(updatedUser);
 });
 
-app.get('/api/top', async (req, res) => {
+app.get('/api/top', cors(corsOptions), async (req, res) => {
     const { data, error } = await supabase.from('users').select('username, coins').order('coins', { ascending: false }).limit(10);
     if (error) return res.status(500).json({ error: 'Failed to load top players' });
     res.json(data);
@@ -206,8 +209,6 @@ app.get('/api/achievements', validateTelegramAuth, async (req, res) => {
 
 app.post('/admin/login', async (req, res) => {
     const { username, password } = req.body;
-
-
     if (password !== process.env.ADMIN_PASSWORD) {
         return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -223,27 +224,20 @@ app.post('/admin/login', async (req, res) => {
         return res.status(403).json({ error: 'Access denied' });
     }
 
-
     const token = crypto.randomBytes(32).toString('hex');
-
     res.json({ token });
 });
 
-
 app.use('/admin/api', async (req, res, next) => {
     const token = req.headers.authorization;
-
     if (!token) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
-
     next();
 });
 
-
 app.get('/admin/api/users', async (req, res) => {
     const { search, page = 1, limit = 20 } = req.query;
-
     let query = supabase
         .from('users')
         .select('id, username, coins, is_admin, is_banned, banned_reason, created_at',
@@ -256,14 +250,11 @@ app.get('/admin/api/users', async (req, res) => {
     }
 
     const { data: users, count, error } = await query;
-
     if (error) {
         return res.status(500).json({ error: error.message });
     }
-
     res.json({ users, total: count });
 });
-
 
 bot.onText(/\/start/, async (msg) => {
     const { id: telegram_id, username, first_name, last_name } = msg.from;
@@ -289,9 +280,7 @@ bot.onText(/\/start/, async (msg) => {
             last_active: new Date().toISOString()
         };
 
-      
         const { error } = await supabase.from('users').upsert(userData, { onConflict: 'telegram_id' });
-
         if (error) throw error;
 
         bot.sendMessage(chatId, "Welcome! Click below to play.", {
@@ -299,7 +288,6 @@ bot.onText(/\/start/, async (msg) => {
                 inline_keyboard: [[{ text: "🚀 Open Game", web_app: { url: WEB_APP_URL } }]]
             }
         });
-
     } catch (error) {
         console.error("Error in /start command:", error);
         bot.sendMessage(chatId, "Sorry, an error occurred. Please try again.");
@@ -307,19 +295,6 @@ bot.onText(/\/start/, async (msg) => {
 });
 
 bot.onText(/^\/(ban|unban|setcoins|addcoins|adminlogs|userlogs|makeadmin)/, adminHandler);
-
-// try {
-//     const balanceHandler = require('./commands/balance')(bot, supabase);
-//     const topHandler = require('./commands/top')(bot, supabase);
-//     const transferHandler = require('./commands/transfer')(bot, supabase);
-//     const clickHandler = require('./commands/click.js')(bot, supabase);
-//     bot.onText(/\/balance/, balanceHandler);
-//     bot.onText(/\/top/, topHandler);
-//     bot.onText(/\/transfer/, transferHandler);
-//     bot.onText(/\/click/, clickHandler);
-// } catch (error) {
-//     console.warn("Could not load external command files. This is okay if they don't exist.", error.message);
-// }
 
 app.listen(PORT, () => {
     console.log(`API server listening on port ${PORT}`);
