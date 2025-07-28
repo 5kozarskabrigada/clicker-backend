@@ -34,7 +34,15 @@ const app = express();
 app.use(cors(corsOptions));
 app.use(express.json());
 
+app.options('*', (req, res) => {
+    res.header('Access-Control-Allow-Origin', corsOptions.origin);
+    res.header('Access-Control-Allow-Methods', corsOptions.methods.join(','));
+    res.header('Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(','));
+    res.status(200).send();
+});
+
 const adminHandler = require('./commands/admin')(bot, supabase);
+
 
 const validateTelegramAuth = (req, res, next) => {
     try {
