@@ -247,9 +247,9 @@ bot.onText(/\/start/, async (msg) => {
             username: username || `user_${telegram_id}`,
             first_name,
             last_name,
-            coins: 0.0,
+            coins: 0.0000000000,
             coins_per_click: 0.0000000001,
-            coins_per_sec: 0.0,
+            coins_per_sec: 0.0000000001,
             offline_coins_per_hour: 0.00000001,
 
             click_tier_1_level: 0,
