@@ -193,6 +193,12 @@ app.post('/api/upgrade', validateTelegramAuth, async (req, res) => {
         const dbUser = await getDBUser(req.user.id);
         if (!dbUser) return res.status(404).json({ error: 'User not found in DB' });
 
+        await supabase
+            .from('users')
+            .update({ total_upgrades: dbUser.total_upgrades + 1 })
+            .eq('id', dbUser.id);
+
+            
         const { error } = await supabase.rpc('purchase_upgrade', {
             p_user_id: dbUser.id,
             p_upgrade_id: upgradeId
