@@ -6,54 +6,40 @@ const TelegramBot = require('node-telegram-bot-api');
 const supabase = require('./db');
 const crypto = require('crypto');
 
+// --- Environment Variable Check ---
 const { TELEGRAM_BOT_TOKEN, WEB_APP_URL, PORT = 10000, SUPABASE_URL, SUPABASE_KEY } = process.env;
 if (!TELEGRAM_BOT_TOKEN || !WEB_APP_URL || !SUPABASE_URL || !SUPABASE_KEY) {
     throw new Error("Missing required environment variables!");
 }
 
-
-
 const app = express();
-const allowedOrigins = [
-    'https://clicker-frontend-pi.vercel.app', 
-    'https://web.telegram.org'
-];
 
+// --- CORRECTED CORS OPTIONS ---
+// This configuration is more flexible and should resolve the connection error.
+// It allows any origin for development and testing.
 const corsOptions = {
-    origin: function (origin, callback) {
-        if (!origin) return callback(null, true);
-
-       
-        if (allowedOrigins.indexOf(origin) !== -1) {
-            return callback(null, true);
-        }
-
-        if (/\.vercel\.app$/.test(origin)) {
-            return callback(null, true);
-        }
-
-
-        return callback(new Error('The CORS policy for this site does not allow access from the specified Origin.'), false);
-    },
+    origin: '*', // Allow all origins
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 };
 
-
 app.use(cors(corsOptions));
 app.use(express.json());
 
+
+// It is recommended to keep security middleware like Helmet
 app.use(helmet.contentSecurityPolicy({
     directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "https://telegram.org"], 
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"], 
-        fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"], 
-        imgSrc: ["'self'", "data:", "https://pngimg.com"], 
-        connectSrc: ["'self'", "https://*.supabase.co"],
+        scriptSrc: ["'self'", "https://telegram.org"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "https://pngimg.com", "blob:"], // Added blob: for potential image previews
+        connectSrc: ["'self'", "https://*.supabase.co", "*.onrender.com"], // Allow connections to Render subdomains
     }
 }));
+
 
 const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
 
@@ -64,7 +50,6 @@ bot.on('polling_error', (error) => {
         bot.stopPolling();
     }
 });
-
 
 
 app.get('/', (req, res) => {
@@ -244,10 +229,10 @@ bot.onText(/\/start/, async (msg) => {
             username: username || `user_${telegram_id}`,
             first_name,
             last_name,
-            coins: 0.0000000000,
-            coins_per_click: 1e-16,
-            coins_per_sec: 1e-16,
-            offline_coins_per_hour: 1e-16,
+            coins: 0.000000000,
+            coins_per_click: 0.000000001,
+            coins_per_sec: 0.000000001,
+            offline_coins_per_hour: 0.000000001,
 
             click_tier_1_level: 0,
             click_tier_2_level: 0,
