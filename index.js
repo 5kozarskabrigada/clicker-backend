@@ -11,12 +11,11 @@ if (!TELEGRAM_BOT_TOKEN || !WEB_APP_URL || !SUPABASE_URL || !SUPABASE_KEY) {
     throw new Error("Missing required environment variables!");
 }
 
+
+
 const app = express();
-
-
-
 const allowedOrigins = [
-    'https://clicker-frontend-pi.vercel.app',
+    'https://clicker-frontend-pi.vercel.app', 
     'https://web.telegram.org'
 ];
 
@@ -24,12 +23,15 @@ const corsOptions = {
     origin: function (origin, callback) {
         if (!origin) return callback(null, true);
 
-        const standardizedOrigin = origin.endsWith('/') ? origin.slice(0, -1) : origin;
-
-        if (allowedOrigins.indexOf(standardizedOrigin) !== -1 || /\.vercel\.app$/.test(standardizedOrigin)) {
-
+       
+        if (allowedOrigins.indexOf(origin) !== -1) {
             return callback(null, true);
         }
+
+        if (/\.vercel\.app$/.test(origin)) {
+            return callback(null, true);
+        }
+
 
         return callback(new Error('The CORS policy for this site does not allow access from the specified Origin.'), false);
     },
@@ -39,18 +41,17 @@ const corsOptions = {
 };
 
 
-
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); 
 app.use(express.json());
+
 app.use(helmet.contentSecurityPolicy({
     directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "https://telegram.org"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:", "https://pngimg.com", "https://i1.sndcdn.com"],
-        connectSrc: ["'self'", "https://*.supabase.co", "https://clicker-backend-chjq.onrender.com"],
+        scriptSrc: ["'self'", "https://telegram.org"], 
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"], 
+        fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"], 
+        imgSrc: ["'self'", "data:", "https://pngimg.com"], 
+        connectSrc: ["'self'", "https://*.supabase.co"],
     }
 }));
 
@@ -182,7 +183,7 @@ app.post('/api/click', validateTelegramAuth, async (req, res) => {
 });
 
 app.post('/api/upgrade', validateTelegramAuth, async (req, res) => {
-    const { upgradeId } = req.body;
+    const { upgradeId } = req.body; 
 
     if (!upgradeId) {
         return res.status(400).json({ error: 'Missing upgradeId' });
@@ -191,12 +192,6 @@ app.post('/api/upgrade', validateTelegramAuth, async (req, res) => {
     try {
         const dbUser = await getDBUser(req.user.id);
         if (!dbUser) return res.status(404).json({ error: 'User not found in DB' });
-
-        await supabase
-            .from('users')
-            .update({ total_upgrades: dbUser.total_upgrades + 1 })
-            .eq('id', dbUser.id);
-
 
         const { error } = await supabase.rpc('purchase_upgrade', {
             p_user_id: dbUser.id,
@@ -214,6 +209,7 @@ app.post('/api/upgrade', validateTelegramAuth, async (req, res) => {
         res.status(400).json({ error: message });
     }
 });
+
 
 
 app.get('/api/top', async (req, res) => {
@@ -239,94 +235,6 @@ app.get('/api/top', async (req, res) => {
     }
 });
 
-app.get('/api/transfers', validateTelegramAuth, async (req, res) => {
-    const dbUser = await getDBUser(req.user.id);
-    if (!dbUser) return res.status(404).json({ error: 'User not found' });
-
-    try {
-        const { data, error } = await supabase
-            .from('transfer_history')
-            .select(`*, from:from_user_id(username), to:to_user_id(username)`)
-            .or(`from_user_id.eq.${dbUser.id},to_user_id.eq.${dbUser.id}`)
-            .order('created_at', { ascending: false });
-
-        if (error) throw error;
-        res.json(data);
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to load transfers' });
-    }
-});
-
-
-
-app.get('/api/game-data', validateTelegramAuth, async (req, res) => {
-    try {
-        const { data: images, error: imgError } = await supabase.from('images').select('*');
-        if (imgError) throw imgError;
-
-        const { data: tasks, error: taskError } = await supabase.from('tasks').select('*');
-        if (taskError) throw taskError;
-
-        res.json({ images, tasks });
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to load game data' });
-    }
-});
-
-app.get('/api/user-progress', validateTelegramAuth, async (req, res) => {
-    const dbUser = await getDBUser(req.user.id);
-    if (!dbUser) return res.status(404).json({ error: 'User not found' });
-
-    try {
-        const { data: user_images, error } = await supabase.from('user_images').select('image_id').eq('user_id', dbUser.id);
-        if (error) throw error;
-
-        res.json({ unlocked_image_ids: user_images.map(img => img.image_id) });
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to load user progress' });
-    }
-});
-
-
-app.post('/api/images/buy', validateTelegramAuth, async (req, res) => {
-    const { imageId } = req.body;
-    const dbUser = await getDBUser(req.user.id);
-
-    const { data: image } = await supabase.from('images').select('cost').eq('id', imageId).single();
-    if (!image || dbUser.coins < image.cost) {
-        return res.status(400).json({ error: 'Cannot afford this image' });
-    }
-
-    await supabase.from('users').update({ coins: dbUser.coins - image.cost }).eq('id', dbUser.id);
-    await supabase.from('user_images').insert({ user_id: dbUser.id, image_id: imageId });
-
-    res.json({ success: true });
-});
-
-
-app.post('/api/images/select', validateTelegramAuth, async (req, res) => {
-    const { imageId } = req.body;
-    const dbUser = await getDBUser(req.user.id);
-
-    await supabase.from('users').update({ equipped_image_id: imageId }).eq('id', dbUser.id);
-
-    const updatedUser = await getDBUser(req.user.id);
-    res.json(updatedUser);
-});
-
-app.get('/api/user-tasks', validateTelegramAuth, async (req, res) => {
-    const dbUser = await getDBUser(req.user.id);
-    if (!dbUser) return res.status(404).json({ error: 'User not found' });
-
-    try {
-        const { data, error } = await supabase.rpc('check_user_tasks', { p_user_id: dbUser.id });
-        if (error) throw error;
-        res.json(data);
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to check tasks' });
-    }
-});
-
 bot.onText(/\/start/, async (msg) => {
     try {
         const { id: telegram_id, username, first_name, last_name } = msg.from;
@@ -336,10 +244,10 @@ bot.onText(/\/start/, async (msg) => {
             username: username || `user_${telegram_id}`,
             first_name,
             last_name,
-            coins: 0.000000000,
-            coins_per_click: 0.000000001,
-            coins_per_sec: 0,
-            offline_coins_per_hour: 0,
+            coins: 0.0000000000,
+            coins_per_click: 1e-16,
+            coins_per_sec: 1e-16,
+            offline_coins_per_hour: 1e-16,
 
             click_tier_1_level: 0,
             click_tier_2_level: 0,
