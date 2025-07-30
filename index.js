@@ -15,30 +15,30 @@ if (!TELEGRAM_BOT_TOKEN || !WEB_APP_URL || !SUPABASE_URL || !SUPABASE_KEY) {
 const app = express();
 
 // --- CORRECTED CORS OPTIONS ---
-// This configuration is more flexible and should resolve the connection error.
-// It allows any origin for development and testing.
+// This allows your frontend, no matter where it's hosted (Vercel, Telegram, etc.),
+// to communicate with your backend.
 const corsOptions = {
     origin: '*', // Allow all origins
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
 };
 
 app.use(cors(corsOptions));
 app.use(express.json());
 
-
-// It is recommended to keep security middleware like Helmet
+// Your helmet configuration and other app setup...
 app.use(helmet.contentSecurityPolicy({
     directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "https://telegram.org"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:", "https://pngimg.com", "blob:"], // Added blob: for potential image previews
-        connectSrc: ["'self'", "https://*.supabase.co", "*.onrender.com"], // Allow connections to Render subdomains
+        imgSrc: ["'self'", "data:", "https://pngimg.com", "https://i1.sndcdn.com"], // Added your default image source
+        connectSrc: ["'self'", "*.supabase.co", "*.onrender.com"], // Allow connections to Render
     }
 }));
+
+
 
 
 const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
