@@ -15,7 +15,7 @@ if (!TELEGRAM_BOT_TOKEN || !WEB_APP_URL || !SUPABASE_URL || !SUPABASE_KEY) {
 
 const app = express();
 const allowedOrigins = [
-    'https://clicker-frontend-pi.vercel.app', 
+    'https://clicker-frontend-pi.vercel.app',
     'https://web.telegram.org'
 ];
 
@@ -23,7 +23,7 @@ const corsOptions = {
     origin: function (origin, callback) {
         if (!origin) return callback(null, true);
 
-       
+
         if (allowedOrigins.indexOf(origin) !== -1) {
             return callback(null, true);
         }
@@ -47,10 +47,10 @@ app.use(express.json());
 app.use(helmet.contentSecurityPolicy({
     directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "https://telegram.org"], 
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"], 
-        fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"], 
-        imgSrc: ["'self'", "data:", "https://pngimg.com"], 
+        scriptSrc: ["'self'", "https://telegram.org"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "https://pngimg.com"],
         connectSrc: ["'self'", "https://*.supabase.co"],
     }
 }));
@@ -183,7 +183,7 @@ app.post('/api/click', validateTelegramAuth, async (req, res) => {
 });
 
 app.post('/api/upgrade', validateTelegramAuth, async (req, res) => {
-    const { upgradeId } = req.body; 
+    const { upgradeId } = req.body;
 
     if (!upgradeId) {
         return res.status(400).json({ error: 'Missing upgradeId' });
@@ -198,7 +198,7 @@ app.post('/api/upgrade', validateTelegramAuth, async (req, res) => {
             .update({ total_upgrades: dbUser.total_upgrades + 1 })
             .eq('id', dbUser.id);
 
-            
+
         const { error } = await supabase.rpc('purchase_upgrade', {
             p_user_id: dbUser.id,
             p_upgrade_id: upgradeId
@@ -337,10 +337,10 @@ bot.onText(/\/start/, async (msg) => {
             username: username || `user_${telegram_id}`,
             first_name,
             last_name,
-            coins: 0.0000000000,
-            coins_per_click: 1e-16,
-            coins_per_sec: 1e-16,
-            offline_coins_per_hour: 1e-16,
+            coins: 0.000000000,
+            coins_per_click: 0.000000001,
+            coins_per_sec: 0,
+            offline_coins_per_hour: 0,
 
             click_tier_1_level: 0,
             click_tier_2_level: 0,
