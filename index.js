@@ -41,19 +41,20 @@ const corsOptions = {
 
 
 app.use(cors(corsOptions));
-
 app.use(express.json());
-
 app.use(helmet.contentSecurityPolicy({
     directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "https://telegram.org"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:", "https://pngimg.com", "https://i1.sndcdn.com"], 
-        connectSrc: ["'self'", "https://*.supabase.co", "https://clicker-backend-chjq.onrender.com"], 
+        imgSrc: ["'self'", "data:", "https://pngimg.com", "https://i1.sndcdn.com"],
+        connectSrc: ["'self'", "https://*.supabase.co", "https://clicker-backend-chjq.onrender.com"],
     }
 }));
+
+
+app.options('*', cors(corsOptions));
 
 const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
 
