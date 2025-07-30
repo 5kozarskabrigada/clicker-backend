@@ -15,7 +15,7 @@ if (!TELEGRAM_BOT_TOKEN || !WEB_APP_URL || !SUPABASE_URL || !SUPABASE_KEY) {
 
 const app = express();
 const allowedOrigins = [
-    'https://clicker-frontend-pi.vercel.app',
+    'https://clicker-frontend-pi.vercel.app/',
     'https://web.telegram.org'
 ];
 
