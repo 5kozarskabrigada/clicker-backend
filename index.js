@@ -1,4 +1,4 @@
-require('dotenv').config();
+equire('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -11,11 +11,12 @@ if (!TELEGRAM_BOT_TOKEN || !WEB_APP_URL || !SUPABASE_URL || !SUPABASE_KEY) {
     throw new Error("Missing required environment variables!");
 }
 
-
-
 const app = express();
+
+
+
 const allowedOrigins = [
-    'https://clicker-frontend-pi.vercel.app/',
+    'https://clicker-frontend-pi.vercel.app',
     'https://web.telegram.org'
 ];
 
@@ -23,15 +24,12 @@ const corsOptions = {
     origin: function (origin, callback) {
         if (!origin) return callback(null, true);
 
+        const standardizedOrigin = origin.endsWith('/') ? origin.slice(0, -1) : origin;
 
-        if (allowedOrigins.indexOf(origin) !== -1) {
+        if (allowedOrigins.indexOf(standardizedOrigin) !== -1 || /\.vercel\.app$/.test(standardizedOrigin)) {
+
             return callback(null, true);
         }
-
-        if (/\.vercel\.app$/.test(origin)) {
-            return callback(null, true);
-        }
-
 
         return callback(new Error('The CORS policy for this site does not allow access from the specified Origin.'), false);
     },
@@ -40,8 +38,10 @@ const corsOptions = {
     credentials: true
 };
 
-app.options('*', cors(corsOptions));
+
+
 app.use(cors(corsOptions));
+
 app.use(express.json());
 
 app.use(helmet.contentSecurityPolicy({
@@ -50,8 +50,8 @@ app.use(helmet.contentSecurityPolicy({
         scriptSrc: ["'self'", "https://telegram.org"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:", "https://pngimg.com"],
-        connectSrc: ["'self'", "https://*.supabase.co"],
+        imgSrc: ["'self'", "data:", "https://pngimg.com", "https://i1.sndcdn.com"], 
+        connectSrc: ["'self'", "https://*.supabase.co", "https://clicker-backend-chjq.onrender.com"], 
     }
 }));
 
