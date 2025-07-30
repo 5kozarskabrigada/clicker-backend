@@ -41,6 +41,7 @@ const corsOptions = {
 
 
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); 
 app.use(express.json());
 app.use(helmet.contentSecurityPolicy({
     directives: {
@@ -52,9 +53,6 @@ app.use(helmet.contentSecurityPolicy({
         connectSrc: ["'self'", "https://*.supabase.co", "https://clicker-backend-chjq.onrender.com"],
     }
 }));
-
-
-app.options('*', cors(corsOptions));
 
 const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
 
