@@ -309,6 +309,19 @@ app.post('/api/images/select', validateTelegramAuth, async (req, res) => {
     res.json(updatedUser);
 });
 
+app.get('/api/user-tasks', validateTelegramAuth, async (req, res) => {
+    const dbUser = await getDBUser(req.user.id);
+    if (!dbUser) return res.status(404).json({ error: 'User not found' });
+
+    try {
+        const { data, error } = await supabase.rpc('check_user_tasks', { p_user_id: dbUser.id });
+        if (error) throw error;
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to check tasks' });
+    }
+});
+
 bot.onText(/\/start/, async (msg) => {
     try {
         const { id: telegram_id, username, first_name, last_name } = msg.from;
