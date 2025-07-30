@@ -15,7 +15,7 @@ if (!TELEGRAM_BOT_TOKEN || !WEB_APP_URL || !SUPABASE_URL || !SUPABASE_KEY) {
 
 const app = express();
 const allowedOrigins = [
-    'https://clicker-frontend-pi.vercel.app', // Your production frontend URL
+    'https://clicker-frontend-pi.vercel.app', 
     'https://web.telegram.org'
 ];
 
@@ -131,17 +131,20 @@ async function getDBUser(telegramId) {
 app.get('/api/user', validateTelegramAuth, async (req, res) => {
     try {
         const dbUser = await getDBUser(req.user.id);
-        if (!dbUser) return res.status(404).json({ error: 'User not found' });
+        if (!dbUser) {
+            return res.status(404).json({ error: 'User not found' });
+        }
 
-        const { data: earnings } = await supabase.rpc('process_offline_earnings', { p_user_id: dbUser.id });
+        const { data: earningsData, error: rpcError } = await supabase.rpc('process_passive_income', { p_user_id: dbUser.id });
+        if (rpcError) throw rpcError;
 
         const updatedUser = await getDBUser(req.user.id);
 
-        res.json({ user: updatedUser, earnings: earnings });
+        res.json({ user: updatedUser, earnings: earningsData });
 
     } catch (err) {
-        console.error("Error in /user:", err);
-        res.status(500).json({ error: 'Server error' });
+        console.error("Error in /user endpoint:", err);
+        res.status(500).json({ error: 'Server error during user fetch' });
     }
 });
 
@@ -207,22 +210,6 @@ app.post('/api/upgrade', validateTelegramAuth, async (req, res) => {
     }
 });
 
-app.post('/api/claim-bonus', validateTelegramAuth, async (req, res) => {
-    try {
-        const dbUser = await getDBUser(req.user.id);
-        if (!dbUser) return res.status(404).json({ error: 'User not found' });
-
-        const { data, error } = await supabase.rpc('claim_comeback_bonus', {
-            p_user_id: dbUser.id
-        });
-
-        if (error) throw error;
-        res.json(data);
-    } catch (err) {
-        console.error("Error in /claim-bonus:", err);
-        res.status(500).json({ error: 'Failed to claim bonus' });
-    }
-});
 
 app.get('/api/top', async (req, res) => {
     const sortBy = req.query.sortBy || 'coins';
@@ -245,6 +232,81 @@ app.get('/api/top', async (req, res) => {
         console.error(`Error in /top for sortBy=${sortBy}:`, err);
         res.status(500).json({ error: 'Failed to load top players' });
     }
+});
+
+app.get('/api/transfers', validateTelegramAuth, async (req, res) => {
+    const dbUser = await getDBUser(req.user.id);
+    if (!dbUser) return res.status(404).json({ error: 'User not found' });
+
+    try {
+        const { data, error } = await supabase
+            .from('transfer_history')
+            .select(`*, from:from_user_id(username), to:to_user_id(username)`)
+            .or(`from_user_id.eq.${dbUser.id},to_user_id.eq.${dbUser.id}`)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to load transfers' });
+    }
+});
+
+
+
+app.get('/api/game-data', validateTelegramAuth, async (req, res) => {
+    try {
+        const { data: images, error: imgError } = await supabase.from('images').select('*');
+        if (imgError) throw imgError;
+
+        const { data: tasks, error: taskError } = await supabase.from('tasks').select('*');
+        if (taskError) throw taskError;
+
+        res.json({ images, tasks });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to load game data' });
+    }
+});
+
+app.get('/api/user-progress', validateTelegramAuth, async (req, res) => {
+    const dbUser = await getDBUser(req.user.id);
+    if (!dbUser) return res.status(404).json({ error: 'User not found' });
+
+    try {
+        const { data: user_images, error } = await supabase.from('user_images').select('image_id').eq('user_id', dbUser.id);
+        if (error) throw error;
+
+        res.json({ unlocked_image_ids: user_images.map(img => img.image_id) });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to load user progress' });
+    }
+});
+
+
+app.post('/api/images/buy', validateTelegramAuth, async (req, res) => {
+    const { imageId } = req.body;
+    const dbUser = await getDBUser(req.user.id);
+
+    const { data: image } = await supabase.from('images').select('cost').eq('id', imageId).single();
+    if (!image || dbUser.coins < image.cost) {
+        return res.status(400).json({ error: 'Cannot afford this image' });
+    }
+
+    await supabase.from('users').update({ coins: dbUser.coins - image.cost }).eq('id', dbUser.id);
+    await supabase.from('user_images').insert({ user_id: dbUser.id, image_id: imageId });
+
+    res.json({ success: true });
+});
+
+
+app.post('/api/images/select', validateTelegramAuth, async (req, res) => {
+    const { imageId } = req.body;
+    const dbUser = await getDBUser(req.user.id);
+
+    await supabase.from('users').update({ equipped_image_id: imageId }).eq('id', dbUser.id);
+
+    const updatedUser = await getDBUser(req.user.id);
+    res.json(updatedUser);
 });
 
 bot.onText(/\/start/, async (msg) => {
