@@ -113,32 +113,27 @@ app.get('/api/user', validateTelegramAuth, async (req, res) => {
 
 app.post('/api/click', validateTelegramAuth, async (req, res) => {
     try {
-
         const { clicks } = req.body;
-
         if (!clicks || typeof clicks !== 'number' || clicks <= 0) {
             return res.status(400).json({ error: 'Invalid click count provided.' });
         }
 
         const dbUser = await getDBUser(req.user.id);
-        
         if (!dbUser) {
             return res.status(404).json({ error: 'User not found' });
         }
-        const { error: rpcError } = await supabase.rpc('increment_user_clicks', {
+
+        const { data, error } = await supabase.rpc('increment_user_clicks', {
             p_user_id: dbUser.id,
-            p_click_increment: clicks 
+            p_click_increment: clicks,
+            p_coin_increment: dbUser.coins_per_click * clicks
         });
 
-        if (rpcError) {
-            throw new Error(`RPC Error: ${rpcError.message}`);
+        if (error) {
+            throw new Error(`RPC Error: ${error.message}`);
         }
 
         const updatedUser = await getDBUser(req.user.id);
-        if (!updatedUser) {
-            return res.status(404).json({ error: 'Could not retrieve updated user data.' });
-        }
-
         res.json(updatedUser);
 
     } catch (err) {
