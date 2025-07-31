@@ -111,17 +111,27 @@ app.get('/api/user', validateTelegramAuth, async (req, res) => {
 
 app.post('/api/click', validateTelegramAuth, async (req, res) => {
     try {
-        const user = await getDBUser(req.user.id);
-        if (!user) return res.status(404).json({ error: 'User not found' });
+        const dbUser = await getDBUser(req.user.id);
+        if (!dbUser) {
+            return res.status(404).json({ error: 'User not found' });
+        }
 
-        // Using a database function is more efficient for frequent updates
-        const { data: updatedUser, error } = await supabase.rpc('increment_user_clicks', {
-            p_user_id: user.id,
-            p_click_increment: 1 // Sending one click at a time now
-        }).single();
+        const { error: rpcError } = await supabase.rpc('increment_user_clicks', {
+            p_user_id: dbUser.id,
+            p_click_increment: 1
+        });
 
-        if (error) throw error;
+        if (rpcError) {
+            throw new Error(`RPC Error: ${rpcError.message}`);
+        }
+
+        const updatedUser = await getDBUser(req.user.id);
+        if (!updatedUser) {
+            return res.status(404).json({ error: 'Could not retrieve updated user data.' });
+        }
+
         res.json(updatedUser);
+
     } catch (err) {
         console.error("Error in /click:", err.message);
         res.status(500).json({ error: 'Failed to process click' });
@@ -279,7 +289,7 @@ app.get('/api/user-tasks', validateTelegramAuth, async (req, res) => {
     }
 });
 
-// --- Telegram Bot Logic ---
+
 bot.onText(/\/start/, async (msg) => {
     try {
         const { id: telegram_id, username, first_name, last_name } = msg.from;
@@ -303,7 +313,7 @@ bot.onText(/\/start/, async (msg) => {
     }
 });
 
-// --- Server Start ---
+
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
