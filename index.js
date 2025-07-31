@@ -109,16 +109,25 @@ app.get('/api/user', validateTelegramAuth, async (req, res) => {
     }
 });
 
+
+
 app.post('/api/click', validateTelegramAuth, async (req, res) => {
     try {
+
+        const { clicks } = req.body;
+
+        if (!clicks || typeof clicks !== 'number' || clicks <= 0) {
+            return res.status(400).json({ error: 'Invalid click count provided.' });
+        }
+
         const dbUser = await getDBUser(req.user.id);
+        
         if (!dbUser) {
             return res.status(404).json({ error: 'User not found' });
         }
-
         const { error: rpcError } = await supabase.rpc('increment_user_clicks', {
             p_user_id: dbUser.id,
-            p_click_increment: 1
+            p_click_increment: clicks 
         });
 
         if (rpcError) {
