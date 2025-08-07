@@ -6,7 +6,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 
-// --- Environment Variables ---
+
 const {
     TELEGRAM_BOT_TOKEN,
     WEB_APP_URL,
@@ -19,12 +19,12 @@ if (!TELEGRAM_BOT_TOKEN || !WEB_APP_URL || !SUPABASE_URL || !SUPABASE_KEY) {
     throw new Error("Missing required environment variables!");
 }
 
-// --- Initialization ---
+
 const app = express();
 const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// --- Middleware Setup ---
+
 const allowedOrigins = [WEB_APP_URL, 'https://web.telegram.org'];
 app.use(cors({
     origin: function (origin, callback) {
@@ -48,7 +48,7 @@ app.use(helmet.contentSecurityPolicy({
 }));
 
 
-// --- Telegram Auth Validation Middleware ---
+
 const validateTelegramAuth = (req, res, next) => {
     try {
         const authHeader = req.headers['authorization'];
@@ -80,16 +80,16 @@ const validateTelegramAuth = (req, res, next) => {
     }
 };
 
-// --- Helper Functions ---
+
 async function getDBUser(telegramId) {
     const { data, error } = await supabase.from('users').select('*').eq('telegram_id', telegramId).single();
-    if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found, which is not a server error
+    if (error && error.code !== 'PGRST116') { 
         console.error(`Error fetching user ${telegramId}:`, error.message);
     }
     return data;
 }
 
-// --- API Endpoints ---
+
 app.get('/', (req, res) => res.json({ status: 'ok', message: 'Welcome to Clicker Backend' }));
 app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
@@ -115,15 +115,17 @@ app.get('/api/user', validateTelegramAuth, async (req, res) => {
 app.post('/api/click', validateTelegramAuth, async (req, res) => {
     try {
         const { clicks } = req.body;
-        if (!clicks || typeof clicks !== 'number' || clicks < 0) {
-
-            return res.status(200).json(await getDBUser(req.user.id));
+        if (!clicks || typeof clicks !== 'number' || clicks <= 0) {
+         
+            const currentUser = await getDBUser(req.user.id);
+            return res.status(200).json(currentUser);
         }
 
         const dbUser = await getDBUser(req.user.id);
         if (!dbUser) {
             return res.status(404).json({ error: 'User not found' });
         }
+
 
         const { error: rpcError } = await supabase.rpc('increment_user_clicks', {
             p_user_id: dbUser.id,
@@ -206,7 +208,7 @@ app.post('/api/transfer', validateTelegramAuth, async (req, res) => {
         const fromUser = await getDBUser(req.user.id);
         if (!fromUser) return res.status(404).json({ error: 'Sender not found' });
 
-        // This assumes you have an RPC function in Supabase named `execute_transfer`
+
         const { error } = await supabase.rpc('execute_transfer', {
             from_id: fromUser.id,
             to_username: toUsername,
