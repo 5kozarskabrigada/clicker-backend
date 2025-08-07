@@ -172,6 +172,27 @@ app.post('/api/upgrade', validateTelegramAuth, async (req, res) => {
     }
 });
 
+app.get('/api/tasks/claimed', validateTelegramAuth, async (req, res) => {
+    try {
+        const dbUser = await getDBUser(req.user.id);
+        if (!dbUser) return res.status(404).json({ error: 'User not found' });
+
+        const { data, error } = await supabase
+            .from('user_claimed_tasks')
+            .select('task_id')
+            .eq('user_id', dbUser.id);
+
+        if (error) throw error;
+
+        res.json(data); 
+
+    } catch (err) {
+        console.error("Error fetching claimed tasks:", err.message);
+        res.status(500).json({ error: 'Failed to fetch claimed tasks' });
+    }
+});
+
+
 app.post('/api/tasks/:taskId/claim', validateTelegramAuth, async (req, res) => {
     try {
         const { taskId } = req.params;
@@ -273,6 +294,8 @@ app.get('/api/user-progress', validateTelegramAuth, async (req, res) => {
         res.status(500).json({ error: 'Failed to load user progress' });
     }
 });
+
+
 
 app.post('/api/images/buy', validateTelegramAuth, async (req, res) => {
     try {
