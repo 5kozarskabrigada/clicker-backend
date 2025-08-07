@@ -172,6 +172,30 @@ app.post('/api/upgrade', validateTelegramAuth, async (req, res) => {
     }
 });
 
+app.post('/api/tasks/:taskId/claim', validateTelegramAuth, async (req, res) => {
+    try {
+        const { taskId } = req.params;
+        const dbUser = await getDBUser(req.user.id);
+        if (!dbUser) return res.status(404).json({ error: 'User not found' });
+
+        const { error } = await supabase.rpc('claim_task_reward', {
+            p_user_id: dbUser.id,
+            p_task_id: parseInt(taskId)
+        });
+
+        if (error) {
+            return res.status(400).json({ error: error.message });
+        }
+
+        const updatedUser = await getDBUser(req.user.id);
+        res.json(updatedUser);
+
+    } catch (err) {
+        console.error("Error in /tasks/claim:", err.message);
+        res.status(500).json({ error: 'Failed to claim reward' });
+    }
+});
+
 app.get('/api/top', validateTelegramAuth, async (req, res) => {
     const sortBy = req.query.sortBy || 'coins';
     const allowedSortColumns = ['coins', 'coins_per_click', 'coins_per_sec'];
