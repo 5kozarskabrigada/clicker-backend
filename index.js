@@ -172,6 +172,7 @@ app.post('/api/upgrade', validateTelegramAuth, async (req, res) => {
     }
 });
 
+
 app.get('/api/tasks/claimed', validateTelegramAuth, async (req, res) => {
     try {
         const dbUser = await getDBUser(req.user.id);
