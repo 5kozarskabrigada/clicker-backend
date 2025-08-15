@@ -53,16 +53,29 @@ const upgrades = {
 const allUpgrades = [...upgrades.click, ...upgrades.auto, ...upgrades.offline];
 
 
-const allowedOrigins = [WEB_APP_URL, 'https://web.telegram.org'];
-app.use(cors({
-    origin: function (origin, callback) {
-        if (!origin || allowedOrigins.some(o => origin.startsWith(o)) || process.env.NODE_ENV !== 'production') {
+
+const allowedOrigins = [
+    process.env.WEB_APP_URL, 
+    'https://clicker-frontend-pi.vercel.app', 
+    'https://web.telegram.org'
+];
+
+const corsOptions = {
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin)) {
             callback(null, true);
         } else {
-            callback(new Error('Not allowed by CORS'));
+            callback(new Error('This origin is not allowed by CORS'));
         }
     },
-}));
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'], 
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    optionsSuccessStatus: 204 
+};
+
+app.use(cors(corsOptions));
+
+app.options('*', cors(corsOptions));
 
 
 
