@@ -25,6 +25,34 @@ const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 
+const INTRA_TIER_COST_MULTIPLIER = 1.215;
+const upgrades = {
+    click: [
+        { id: 'click_tier_1', name: 'A Cups', benefit: '+0.000000001 per click', base_cost: 0.000000064, tier: 1 },
+        { id: 'click_tier_2', name: 'B Cups', benefit: '+0.000000008 per click', base_cost: 0.000001024, tier: 2 },
+        { id: 'click_tier_3', name: 'C Cups', benefit: '+0.000000064 per click', base_cost: 0.000016384, tier: 3 },
+        { id: 'click_tier_4', name: 'D Cups', benefit: '+0.000000512 per click', base_cost: 0.000262144, tier: 4 },
+        { id: 'click_tier_5', name: 'DD Cups', benefit: '+0.000004096 per click', base_cost: 0.004194304, tier: 5 },
+    ],
+    auto: [
+        { id: 'auto_tier_1', name: 'Basic Lotion', benefit: '+0.000000001 per sec', base_cost: 0.000000064, tier: 1 },
+        { id: 'auto_tier_2', name: 'Enhanced Serum', benefit: '+0.000000008 per sec', base_cost: 0.000001024, tier: 2 },
+        { id: 'auto_tier_3', name: 'Collagen Cream', benefit: '+0.000000064 per sec', base_cost: 0.000016384, tier: 3 },
+        { id: 'auto_tier_4', name: 'Firming Gel', benefit: '+0.000000512 per sec', base_cost: 0.000262144, tier: 4 },
+        { id: 'auto_tier_5', name: 'Miracle Elixir', benefit: '+0.000004096 per sec', base_cost: 0.004194304, tier: 5 },
+    ],
+    offline: [
+        { id: 'offline_tier_1', name: 'Simple Bralette', benefit: '+0.000000001 per hour', base_cost: 0.000000064, tier: 1 },
+        { id: 'offline_tier_2', name: 'Sports Bra', benefit: '+0.000000008 per hour', base_cost: 0.000001024, tier: 2 },
+        { id: 'offline_tier_3', name: 'Padded Bra', benefit: '+0.000000064 per hour', base_cost: 0.000016384, tier: 3 },
+        { id: 'offline_tier_4', name: 'Push-Up Bra', benefit: '+0.000000512 per hour', base_cost: 0.000262144, tier: 4 },
+        { id: 'offline_tier_5', name: 'Designer Corset', benefit: '+0.000004096 per hour', base_cost: 0.004194304, tier: 5 },
+    ]
+};
+
+const allUpgrades = [...upgrades.click, ...upgrades.auto, ...upgrades.offline];
+
+
 const allowedOrigins = [WEB_APP_URL, 'https://web.telegram.org'];
 app.use(cors({
     origin: function (origin, callback) {
@@ -157,6 +185,17 @@ app.post('/api/upgrade', validateTelegramAuth, async (req, res) => {
         const dbUser = await getDBUser(req.user.id);
         if (!dbUser) return res.status(404).json({ error: 'User not found' });
 
+        const upgrade = allUpgrades.find(u => u.id === upgradeId);
+        if (!upgrade) return res.status(404).json({ error: 'Upgrade not found' });
+
+        const currentLevel = dbUser[`${upgradeId}_level`] || 0;
+        const cost = upgrade.base_cost * Math.pow(INTRA_TIER_COST_MULTIPLIER, currentLevel);
+
+        if (dbUser.coins < cost) {
+            return res.status(400).json({ error: 'You do not have enough coins.' });
+        }
+
+        
         const { error } = await supabase.rpc('purchase_upgrade', {
             p_user_id: dbUser.id,
             p_upgrade_id: upgradeId
@@ -167,6 +206,7 @@ app.post('/api/upgrade', validateTelegramAuth, async (req, res) => {
         res.json(updatedUser);
     } catch (err) {
         console.error(`Error in /upgrade for ${upgradeId}:`, err.message);
+        
         const message = err.message.includes('Not enough coins') ? 'You do not have enough coins.' : 'Upgrade failed.';
         res.status(400).json({ error: message });
     }
