@@ -207,19 +207,20 @@ app.post('/api/upgrade', validateTelegramAuth, async (req, res) => {
         const currentLevel = new Decimal(dbUser[`${upgradeId}_level`] || 0);
         const baseCost = new Decimal(upgrade.base_cost);
         const multiplier = new Decimal(INTRA_TIER_COST_MULTIPLIER);
-        const userCoins = new Decimal(dbUser.coins);
 
-        const cost = baseCost.times(multiplier.pow(currentLevel));
 
         console.log(`[Upgrade Check] User: ${dbUser.id}, Upgrade: ${upgradeId}`);
         console.log(`  > User Coins: ${userCoins.toString()}`);
         console.log(`  > Calculated Cost: ${cost.toString()}`);
         console.log(`  > Base Cost: ${baseCost.toString()}, Level: ${currentLevel.toString()}`);
 
-        if (userCoins.lessThan(cost)) {
-            console.log('  > Decision: INSUFFICIENT FUNDS');
+        const userCoins = new Decimal(dbUser.coins).toDecimalPlaces(9, Decimal.ROUND_DOWN);
+        const cost = baseCost.times(multiplier.pow(currentLevel));
+
+        if (userCoins.lt(cost)) {
             return res.status(400).json({ error: 'You do not have enough coins.' });
         }
+
         console.log('  > Decision: SUFFICIENT FUNDS, proceeding...');
 
         const { error } = await supabase.rpc('purchase_upgrade', {
