@@ -237,6 +237,30 @@ app.post('/api/upgrade', validateTelegramAuth, async (req, res) => {
     }
 });
 
+app.post('/api/sync', validateTelegramAuth, async (req, res) => {
+    try {
+        const { clicks } = req.body;
+        if (!clicks || clicks <= 0) {
+            return res.status(204).send(); 
+        }
+
+        const dbUser = await getDBUser(req.user.id);
+        if (!dbUser) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        await supabase.rpc('increment_user_clicks', {
+            p_user_id: dbUser.id,
+            p_click_increment: clicks
+        });
+
+        res.status(204).send(); 
+    } catch (err) {
+        console.error("Error in /sync endpoint:", err.message);
+        res.status(500).json({ error: 'Failed to process sync' });
+    }
+});
+
 
 app.get('/api/tasks/claimed', validateTelegramAuth, async (req, res) => {
     try {
