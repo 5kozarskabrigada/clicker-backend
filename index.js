@@ -23,6 +23,7 @@ if (!TELEGRAM_BOT_TOKEN || !WEB_APP_URL || !SUPABASE_URL || !SUPABASE_KEY) {
 const app = express();
 const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const { Decimal } = require('decimal.js'); 
 
 
 const INTRA_TIER_COST_MULTIPLIER = 1.215;
@@ -203,14 +204,24 @@ app.post('/api/upgrade', validateTelegramAuth, async (req, res) => {
         const upgrade = allUpgrades.find(u => u.id === upgradeId);
         if (!upgrade) return res.status(404).json({ error: 'Upgrade not found' });
 
-        const currentLevel = dbUser[`${upgradeId}_level`] || 0;
-        const cost = upgrade.base_cost * Math.pow(INTRA_TIER_COST_MULTIPLIER, currentLevel);
+        const currentLevel = new Decimal(dbUser[`${upgradeId}_level`] || 0);
+        const baseCost = new Decimal(upgrade.base_cost);
+        const multiplier = new Decimal(INTRA_TIER_COST_MULTIPLIER);
+        const userCoins = new Decimal(dbUser.coins);
 
-        if (dbUser.coins < cost) {
+        const cost = baseCost.times(multiplier.pow(currentLevel));
+
+        console.log(`[Upgrade Check] User: ${dbUser.id}, Upgrade: ${upgradeId}`);
+        console.log(`  > User Coins: ${userCoins.toString()}`);
+        console.log(`  > Calculated Cost: ${cost.toString()}`);
+        console.log(`  > Base Cost: ${baseCost.toString()}, Level: ${currentLevel.toString()}`);
+
+        if (userCoins.lessThan(cost)) {
+            console.log('  > Decision: INSUFFICIENT FUNDS');
             return res.status(400).json({ error: 'You do not have enough coins.' });
         }
+        console.log('  > Decision: SUFFICIENT FUNDS, proceeding...');
 
-        
         const { error } = await supabase.rpc('purchase_upgrade', {
             p_user_id: dbUser.id,
             p_upgrade_id: upgradeId
@@ -220,8 +231,7 @@ app.post('/api/upgrade', validateTelegramAuth, async (req, res) => {
         const updatedUser = await getDBUser(req.user.id);
         res.json(updatedUser);
     } catch (err) {
-        console.error(`Error in /upgrade for ${upgradeId}:`, err.message);
-        
+        console.error(`[Upgrade Error] for ${upgradeId}:`, err.message);
         const message = err.message.includes('Not enough coins') ? 'You do not have enough coins.' : 'Upgrade failed.';
         res.status(400).json({ error: message });
     }
