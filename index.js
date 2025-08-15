@@ -56,13 +56,16 @@ const allUpgrades = [...upgrades.click, ...upgrades.auto, ...upgrades.offline];
 const allowedOrigins = [WEB_APP_URL, 'https://web.telegram.org'];
 app.use(cors({
     origin: function (origin, callback) {
-        if (!origin || allowedOrigins.some(o => origin.startsWith(o)) || /\.vercel\.app$/.test(origin)) {
+        if (!origin || allowedOrigins.some(o => origin.startsWith(o)) || process.env.NODE_ENV !== 'production') {
             callback(null, true);
         } else {
             callback(new Error('Not allowed by CORS'));
         }
     },
 }));
+
+
+
 app.use(express.json());
 app.use(helmet.contentSecurityPolicy({
     directives: {
